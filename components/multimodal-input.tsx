@@ -1,11 +1,6 @@
 'use client';
 
-import type {
-  Attachment,
-  ChatRequestOptions,
-  CreateMessage,
-  Message,
-} from 'ai';
+import type { Attachment, ChatRequestOptions, CreateMessage, Message } from 'ai';
 import cx from 'classnames';
 import type React from 'react';
 import {
@@ -55,13 +50,13 @@ function PureMultimodalInput({
   setMessages: Dispatch<SetStateAction<Array<Message>>>;
   append: (
     message: Message | CreateMessage,
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => Promise<string | null | undefined>;
   handleSubmit: (
     event?: {
       preventDefault?: () => void;
     },
-    chatRequestOptions?: ChatRequestOptions,
+    chatRequestOptions?: ChatRequestOptions
   ) => void;
   className?: string;
 }) {
@@ -81,10 +76,7 @@ function PureMultimodalInput({
     }
   };
 
-  const [localStorageInput, setLocalStorageInput] = useLocalStorage(
-    'input',
-    '',
-  );
+  const [localStorageInput, setLocalStorageInput] = useLocalStorage('input', '');
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -123,14 +115,7 @@ function PureMultimodalInput({
     if (width && width > 768) {
       textareaRef.current?.focus();
     }
-  }, [
-    attachments,
-    handleSubmit,
-    setAttachments,
-    setLocalStorageInput,
-    width,
-    chatId,
-  ]);
+  }, [attachments, handleSubmit, setAttachments, setLocalStorageInput, width, chatId]);
 
   const uploadFile = async (file: File) => {
     const formData = new FormData();
@@ -168,30 +153,23 @@ function PureMultimodalInput({
       try {
         const uploadPromises = files.map((file) => uploadFile(file));
         const uploadedAttachments = await Promise.all(uploadPromises);
-        const successfullyUploadedAttachments = uploadedAttachments.filter(
-          (attachment) => attachment !== undefined,
-        );
+        const successfullyUploadedAttachments = uploadedAttachments.filter((attachment) => attachment !== undefined);
 
-        setAttachments((currentAttachments) => [
-          ...currentAttachments,
-          ...successfullyUploadedAttachments,
-        ]);
+        setAttachments((currentAttachments) => [...currentAttachments, ...successfullyUploadedAttachments]);
       } catch (error) {
         console.error('Error uploading files!', error);
       } finally {
         setUploadQueue([]);
       }
     },
-    [setAttachments],
+    [setAttachments]
   );
 
   return (
     <div className="relative w-full flex flex-col gap-4">
-      {messages.length === 0 &&
-        attachments.length === 0 &&
-        uploadQueue.length === 0 && (
-          <SuggestedActions append={append} chatId={chatId} />
-        )}
+      {messages.length === 0 && attachments.length === 0 && uploadQueue.length === 0 && (
+        <SuggestedActions append={append} chatId={chatId} />
+      )}
 
       <input
         type="file"
@@ -229,12 +207,12 @@ function PureMultimodalInput({
         onChange={handleInput}
         className={cx(
           'min-h-[24px] max-h-[calc(75dvh)] overflow-hidden resize-none rounded-2xl !text-base bg-muted pb-10 dark:border-zinc-700',
-          className,
+          className
         )}
         rows={2}
         autoFocus
         onKeyDown={(event) => {
-          if (event.key === 'Enter' && !event.shiftKey) {
+          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent?.isComposing) {
             event.preventDefault();
 
             if (isLoading) {
@@ -254,27 +232,20 @@ function PureMultimodalInput({
         {isLoading ? (
           <StopButton stop={stop} setMessages={setMessages} />
         ) : (
-          <SendButton
-            input={input}
-            submitForm={submitForm}
-            uploadQueue={uploadQueue}
-          />
+          <SendButton input={input} submitForm={submitForm} uploadQueue={uploadQueue} />
         )}
       </div>
     </div>
   );
 }
 
-export const MultimodalInput = memo(
-  PureMultimodalInput,
-  (prevProps, nextProps) => {
-    if (prevProps.input !== nextProps.input) return false;
-    if (prevProps.isLoading !== nextProps.isLoading) return false;
-    if (!equal(prevProps.attachments, nextProps.attachments)) return false;
+export const MultimodalInput = memo(PureMultimodalInput, (prevProps, nextProps) => {
+  if (prevProps.input !== nextProps.input) return false;
+  if (prevProps.isLoading !== nextProps.isLoading) return false;
+  if (!equal(prevProps.attachments, nextProps.attachments)) return false;
 
-    return true;
-  },
-);
+  return true;
+});
 
 function PureAttachmentsButton({
   fileInputRef,
@@ -347,8 +318,7 @@ function PureSendButton({
 }
 
 const SendButton = memo(PureSendButton, (prevProps, nextProps) => {
-  if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length)
-    return false;
+  if (prevProps.uploadQueue.length !== nextProps.uploadQueue.length) return false;
   if (prevProps.input !== nextProps.input) return false;
   return true;
 });

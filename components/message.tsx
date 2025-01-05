@@ -8,7 +8,7 @@ import { memo, useMemo, useState } from 'react';
 import type { Vote } from '@/lib/db/schema';
 
 import { DocumentToolCall, DocumentToolResult } from './document';
-import { PencilEditIcon, SparklesIcon } from './icons';
+import { PencilEditIcon, SparklesIcon, TerminalIcon } from './icons';
 import { Markdown } from './markdown';
 import { MessageActions } from './message-actions';
 import { PreviewAttachment } from './preview-attachment';
@@ -33,15 +33,12 @@ const PurePreviewMessage = ({
   message: Message;
   vote: Vote | undefined;
   isLoading: boolean;
-  setMessages: (
-    messages: Message[] | ((messages: Message[]) => Message[]),
-  ) => void;
-  reload: (
-    chatRequestOptions?: ChatRequestOptions,
-  ) => Promise<string | null | undefined>;
+  setMessages: (messages: Message[] | ((messages: Message[]) => Message[])) => void;
+  reload: (chatRequestOptions?: ChatRequestOptions) => Promise<string | null | undefined>;
   isReadonly: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+  console.log('message update', message);
 
   return (
     <AnimatePresence>
@@ -57,13 +54,13 @@ const PurePreviewMessage = ({
             {
               'w-full': mode === 'edit',
               'group-data-[role=user]/message:w-fit': mode !== 'edit',
-            },
+            }
           )}
         >
           {message.role === 'assistant' && (
             <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border bg-background">
               <div className="translate-y-px">
-                <SparklesIcon size={14} />
+                {message.toolInvocations ? <TerminalIcon size={14} /> : <SparklesIcon size={14} />}
               </div>
             </div>
           )}
@@ -72,15 +69,12 @@ const PurePreviewMessage = ({
             {message.experimental_attachments && (
               <div className="flex flex-row justify-end gap-2">
                 {message.experimental_attachments.map((attachment) => (
-                  <PreviewAttachment
-                    key={attachment.url}
-                    attachment={attachment}
-                  />
+                  <PreviewAttachment key={attachment.url} attachment={attachment} />
                 ))}
               </div>
             )}
 
-            {message.content && mode === 'view' && (
+            {message.content.trim() && mode === 'view' && (
               <div className="flex flex-row gap-2 items-start">
                 {message.role === 'user' && !isReadonly && (
                   <Tooltip>
@@ -101,8 +95,7 @@ const PurePreviewMessage = ({
 
                 <div
                   className={cn('flex flex-col gap-4', {
-                    'bg-primary text-primary-foreground px-3 py-2 rounded-xl':
-                      message.role === 'user',
+                    'bg-primary text-primary-foreground px-3 py-2 rounded-xl': message.role === 'user',
                   })}
                 >
                   <Markdown>{message.content as string}</Markdown>
@@ -133,26 +126,21 @@ const PurePreviewMessage = ({
                     const { result } = toolInvocation;
 
                     return (
-                      <div key={toolCallId}>
+                      <div className="flex flex-col gap-4" key={toolCallId}>
+                        {toolName && (
+                          <i>
+                            tool&nbsp;<strong>{toolName}</strong>&nbsp;have been called
+                          </i>
+                        )}
+
                         {toolName === 'getWeather' ? (
                           <Weather weatherAtLocation={result} />
                         ) : toolName === 'createDocument' ? (
-                          <DocumentPreview
-                            isReadonly={isReadonly}
-                            result={result}
-                          />
+                          <DocumentPreview isReadonly={isReadonly} result={result} />
                         ) : toolName === 'updateDocument' ? (
-                          <DocumentToolResult
-                            type="update"
-                            result={result}
-                            isReadonly={isReadonly}
-                          />
+                          <DocumentToolResult type="update" result={result} isReadonly={isReadonly} />
                         ) : toolName === 'requestSuggestions' ? (
-                          <DocumentToolResult
-                            type="request-suggestions"
-                            result={result}
-                            isReadonly={isReadonly}
-                          />
+                          <DocumentToolResult type="request-suggestions" result={result} isReadonly={isReadonly} />
                         ) : (
                           <pre>{JSON.stringify(result, null, 2)}</pre>
                         )}
@@ -171,22 +159,22 @@ const PurePreviewMessage = ({
                       ) : toolName === 'createDocument' ? (
                         <DocumentPreview isReadonly={isReadonly} args={args} />
                       ) : toolName === 'updateDocument' ? (
-                        <DocumentToolCall
-                          type="update"
-                          args={args}
-                          isReadonly={isReadonly}
-                        />
+                        <DocumentToolCall type="update" args={args} isReadonly={isReadonly} />
                       ) : toolName === 'requestSuggestions' ? (
-                        <DocumentToolCall
-                          type="request-suggestions"
-                          args={args}
-                          isReadonly={isReadonly}
-                        />
+                        <DocumentToolCall type="request-suggestions" args={args} isReadonly={isReadonly} />
                       ) : null}
                     </div>
                   );
                 })}
               </div>
+              // <Tooltip>
+              //   <TooltipTrigger asChild>
+              //     <EyeIcon />
+              //   </TooltipTrigger>
+              //   <TooltipContent align="end">
+
+              //   </TooltipContent>
+              // </Tooltip>
             )}
 
             {!isReadonly && (
@@ -205,23 +193,14 @@ const PurePreviewMessage = ({
   );
 };
 
-export const PreviewMessage = memo(
-  PurePreviewMessage,
-  (prevProps, nextProps) => {
-    if (prevProps.isLoading !== nextProps.isLoading) return false;
-    if (prevProps.message.content !== nextProps.message.content) return false;
-    if (
-      !equal(
-        prevProps.message.toolInvocations,
-        nextProps.message.toolInvocations,
-      )
-    )
-      return false;
-    if (!equal(prevProps.vote, nextProps.vote)) return false;
+export const PreviewMessage = memo(PurePreviewMessage, (prevProps, nextProps) => {
+  if (prevProps.isLoading !== nextProps.isLoading) return false;
+  if (prevProps.message.content !== nextProps.message.content) return false;
+  if (!equal(prevProps.message.toolInvocations, nextProps.message.toolInvocations)) return false;
+  if (!equal(prevProps.vote, nextProps.vote)) return false;
 
-    return true;
-  },
-);
+  return true;
+});
 
 export const ThinkingMessage = () => {
   const role = 'assistant';
@@ -238,7 +217,7 @@ export const ThinkingMessage = () => {
           'flex gap-4 group-data-[role=user]/message:px-3 w-full group-data-[role=user]/message:w-fit group-data-[role=user]/message:ml-auto group-data-[role=user]/message:max-w-2xl group-data-[role=user]/message:py-2 rounded-xl',
           {
             'group-data-[role=user]/message:bg-muted': true,
-          },
+          }
         )}
       >
         <div className="size-8 flex items-center rounded-full justify-center ring-1 shrink-0 ring-border">
@@ -246,9 +225,7 @@ export const ThinkingMessage = () => {
         </div>
 
         <div className="flex flex-col gap-2 w-full">
-          <div className="flex flex-col gap-4 text-muted-foreground">
-            Thinking...
-          </div>
+          <div className="flex flex-col gap-4 text-muted-foreground">Thinking...</div>
         </div>
       </div>
     </motion.div>

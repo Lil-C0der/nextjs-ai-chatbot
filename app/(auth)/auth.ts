@@ -1,4 +1,4 @@
-import { compare } from 'bcrypt-ts';
+import { compare, hashSync } from 'bcrypt-ts';
 import NextAuth, { type User, type Session } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 
@@ -38,13 +38,7 @@ export const {
 
       return token;
     },
-    async session({
-      session,
-      token,
-    }: {
-      session: ExtendedSession;
-      token: any;
-    }) {
+    async session({ session, token }: { session: ExtendedSession; token: any }) {
       if (session.user) {
         session.user.id = token.id as string;
       }

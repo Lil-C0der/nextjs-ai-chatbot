@@ -1,20 +1,10 @@
-import {
-  type Message,
-  convertToCoreMessages,
-  createDataStreamResponse,
-  streamObject,
-  streamText,
-} from 'ai';
+import { type Message, convertToCoreMessages, createDataStreamResponse, streamObject, streamText } from 'ai';
 import { z } from 'zod';
 
 import { auth } from '@/app/(auth)/auth';
 import { customModel } from '@/lib/ai';
 import { models } from '@/lib/ai/models';
-import {
-  codePrompt,
-  systemPrompt,
-  updateDocumentPrompt,
-} from '@/lib/ai/prompts';
+import { codePrompt, systemPrompt, updateDocumentPrompt } from '@/lib/ai/prompts';
 import {
   deleteChatById,
   getChatById,
@@ -25,13 +15,11 @@ import {
   saveSuggestions,
 } from '@/lib/db/queries';
 import type { Suggestion } from '@/lib/db/schema';
-import {
-  generateUUID,
-  getMostRecentUserMessage,
-  sanitizeResponseMessages,
-} from '@/lib/utils';
-
+import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
+import { httpToolNames, httpTools } from '@/lib/ai/http-tools';
 import { generateTitleFromUserMessage } from '../../actions';
+import { realWorldToolNames, realWorldTools } from '@/lib/ai/real-world-tools';
+import { builtInToolNames, builtInTools } from '@/lib/ai/built-in-tools';
 
 export const maxDuration = 60;
 
@@ -39,25 +27,16 @@ type AllowedTools =
   | 'createDocument'
   | 'updateDocument'
   | 'requestSuggestions'
-  | 'getWeather';
+  | keyof typeof httpTools
+  | keyof typeof realWorldTools
+  | keyof typeof builtInTools;
 
-const blocksTools: AllowedTools[] = [
-  'createDocument',
-  'updateDocument',
-  'requestSuggestions',
-];
+const blocksTools: AllowedTools[] = ['createDocument', 'updateDocument', 'requestSuggestions'];
 
-const weatherTools: AllowedTools[] = ['getWeather'];
-
-const allTools: AllowedTools[] = [...blocksTools, ...weatherTools];
+const allTools: AllowedTools[] = [...blocksTools, ...httpToolNames, ...realWorldToolNames, ...builtInToolNames];
 
 export async function POST(request: Request) {
-  const {
-    id,
-    messages,
-    modelId,
-  }: { id: string; messages: Array<Message>; modelId: string } =
-    await request.json();
+  const { id, messages, modelId }: { id: string; messages: Array<Message>; modelId: string } = await request.json();
 
   const session = await auth();
 
@@ -81,16 +60,18 @@ export async function POST(request: Request) {
   const chat = await getChatById({ id });
 
   if (!chat) {
-    const title = await generateTitleFromUserMessage({ message: userMessage });
+    const title = await generateTitleFromUserMessage({
+      message: userMessage,
+      apiIdentifier: model.apiIdentifier,
+    });
+
     await saveChat({ id, userId: session.user.id, title });
   }
 
   const userMessageId = generateUUID();
 
   await saveMessages({
-    messages: [
-      { ...userMessage, id: userMessageId, createdAt: new Date(), chatId: id },
-    ],
+    messages: [{ ...userMessage, id: userMessageId, createdAt: new Date(), chatId: id }],
   });
 
   return createDataStreamResponse({
@@ -107,21 +88,9 @@ export async function POST(request: Request) {
         maxSteps: 5,
         experimental_activeTools: allTools,
         tools: {
-          getWeather: {
-            description: 'Get the current weather at a location',
-            parameters: z.object({
-              latitude: z.number(),
-              longitude: z.number(),
-            }),
-            execute: async ({ latitude, longitude }) => {
-              const response = await fetch(
-                `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m&hourly=temperature_2m&daily=sunrise,sunset&timezone=auto`,
-              );
-
-              const weatherData = await response.json();
-              return weatherData;
-            },
-          },
+          ...httpTools,
+          ...realWorldTools,
+          ...builtInTools,
           createDocument: {
             description:
               'Create a document for a writing activity. This tool will call other functions that will generate the contents of the document based on the title and kind.',
@@ -156,8 +125,7 @@ export async function POST(request: Request) {
               if (kind === 'text') {
                 const { fullStream } = streamText({
                   model: customModel(model.apiIdentifier),
-                  system:
-                    'Write about the given topic. Markdown is supported. Use headings wherever appropriate.',
+                  system: 'Write about the given topic. Markdown is supported. Use headings wherever appropriate.',
                   prompt: title,
                 });
 
@@ -221,8 +189,7 @@ export async function POST(request: Request) {
                 id,
                 title,
                 kind,
-                content:
-                  'A document was created and is now visible to the user.',
+                content: 'A document was created and is now visible to the user.',
               };
             },
           },
@@ -230,9 +197,7 @@ export async function POST(request: Request) {
             description: 'Update a document with the given description.',
             parameters: z.object({
               id: z.string().describe('The ID of the document to update'),
-              description: z
-                .string()
-                .describe('The description of changes that need to be made'),
+              description: z.string().describe('The description of changes that need to be made'),
             }),
             execute: async ({ id, description }) => {
               const document = await getDocumentById({ id });
@@ -333,9 +298,7 @@ export async function POST(request: Request) {
           requestSuggestions: {
             description: 'Request suggestions for a document',
             parameters: z.object({
-              documentId: z
-                .string()
-                .describe('The ID of the document to request edits'),
+              documentId: z.string().describe('The ID of the document to request edits'),
             }),
             execute: async ({ documentId }) => {
               const document = await getDocumentById({ id: documentId });
@@ -346,9 +309,7 @@ export async function POST(request: Request) {
                 };
               }
 
-              const suggestions: Array<
-                Omit<Suggestion, 'userId' | 'createdAt' | 'documentCreatedAt'>
-              > = [];
+              const suggestions: Array<Omit<Suggestion, 'userId' | 'createdAt' | 'documentCreatedAt'>> = [];
 
               const { elementStream } = streamObject({
                 model: customModel(model.apiIdentifier),
@@ -357,15 +318,9 @@ export async function POST(request: Request) {
                 prompt: document.content,
                 output: 'array',
                 schema: z.object({
-                  originalSentence: z
-                    .string()
-                    .describe('The original sentence'),
-                  suggestedSentence: z
-                    .string()
-                    .describe('The suggested sentence'),
-                  description: z
-                    .string()
-                    .describe('The description of the suggestion'),
+                  originalSentence: z.string().describe('The original sentence'),
+                  suggestedSentence: z.string().describe('The suggested sentence'),
+                  description: z.string().describe('The description of the suggestion'),
                 }),
               });
 
@@ -412,29 +367,25 @@ export async function POST(request: Request) {
         onFinish: async ({ response }) => {
           if (session.user?.id) {
             try {
-              const responseMessagesWithoutIncompleteToolCalls =
-                sanitizeResponseMessages(response.messages);
+              const responseMessagesWithoutIncompleteToolCalls = sanitizeResponseMessages(response.messages);
 
               await saveMessages({
-                messages: responseMessagesWithoutIncompleteToolCalls.map(
-                  (message) => {
-                    const messageId = generateUUID();
+                messages: responseMessagesWithoutIncompleteToolCalls.map((message) => {
+                  const messageId = generateUUID();
+                  if (message.role === 'assistant') {
+                    dataStream.writeMessageAnnotation({
+                      messageIdFromServer: messageId,
+                    });
+                  }
 
-                    if (message.role === 'assistant') {
-                      dataStream.writeMessageAnnotation({
-                        messageIdFromServer: messageId,
-                      });
-                    }
-
-                    return {
-                      id: messageId,
-                      chatId: id,
-                      role: message.role,
-                      content: message.content,
-                      createdAt: new Date(),
-                    };
-                  },
-                ),
+                  return {
+                    id: messageId,
+                    chatId: id,
+                    role: message.role,
+                    content: message.content,
+                    createdAt: new Date(),
+                  };
+                }),
               });
             } catch (error) {
               console.error('Failed to save chat');
@@ -448,6 +399,10 @@ export async function POST(request: Request) {
       });
 
       result.mergeIntoDataStream(dataStream);
+    },
+    onError: (error) => {
+      console.log('streaming error', error);
+      return error instanceof Error ? error.message : String(error);
     },
   });
 }

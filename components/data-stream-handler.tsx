@@ -9,21 +9,13 @@ import { useUserMessageId } from '@/hooks/use-user-message-id';
 import { cx } from 'class-variance-authority';
 
 type DataStreamDelta = {
-  type:
-    | 'text-delta'
-    | 'code-delta'
-    | 'title'
-    | 'id'
-    | 'suggestion'
-    | 'clear'
-    | 'finish'
-    | 'user-message-id'
-    | 'kind';
+  type: 'text-delta' | 'code-delta' | 'title' | 'id' | 'suggestion' | 'clear' | 'finish' | 'user-message-id' | 'kind';
   content: string | Suggestion;
 };
 
 export function DataStreamHandler({ id }: { id: string }) {
   const { data: dataStream } = useChat({ id });
+  
   const { setUserMessageIdFromServer } = useUserMessageId();
   const { setBlock } = useBlock();
   const lastProcessedIndex = useRef(-1);
@@ -72,9 +64,7 @@ export function DataStreamHandler({ id }: { id: string }) {
               ...draftBlock,
               content: draftBlock.content + (delta.content as string),
               isVisible:
-                draftBlock.status === 'streaming' &&
-                draftBlock.content.length > 400 &&
-                draftBlock.content.length < 450
+                draftBlock.status === 'streaming' && draftBlock.content.length > 400 && draftBlock.content.length < 450
                   ? true
                   : draftBlock.isVisible,
               status: 'streaming',
@@ -85,9 +75,7 @@ export function DataStreamHandler({ id }: { id: string }) {
               ...draftBlock,
               content: delta.content as string,
               isVisible:
-                draftBlock.status === 'streaming' &&
-                draftBlock.content.length > 300 &&
-                draftBlock.content.length < 310
+                draftBlock.status === 'streaming' && draftBlock.content.length > 300 && draftBlock.content.length < 310
                   ? true
                   : draftBlock.isVisible,
               status: 'streaming',
