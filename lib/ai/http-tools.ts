@@ -1,9 +1,12 @@
 import { CoreTool } from 'ai';
 import z from 'zod';
 
-type HttpTools = 'getWeather' | 'genUserList' | 'getCurrentCoorByIP';
+type HttpTools = 'getWeather' | 'genUserList';
 
-export const httpToolNames: HttpTools[] = ['getWeather', 'genUserList', 'getCurrentCoorByIP'];
+type InjectableHttpTools = 'getCurrentCoorByIP';
+
+export const httpToolNames: HttpTools[] = ['getWeather', 'genUserList'];
+export const injectableHttpToolNames: InjectableHttpTools[] = ['getCurrentCoorByIP'];
 
 export const httpTools: Record<HttpTools, CoreTool> = {
   genUserList: {
@@ -19,21 +22,7 @@ export const httpTools: Record<HttpTools, CoreTool> = {
       return results;
     },
   },
-  getCurrentCoorByIP: {
-    description: 'Get the current location by IP',
-    parameters: z.object({}),
-    execute: async () => {
-      const response = await fetch('https://ipapi.co/json');
-      const locationData = await response.json();
 
-      return {
-        latitude: locationData.latitude,
-        longitude: locationData.longitude,
-        city: locationData.city,
-        ip: locationData.ip,
-      };
-    },
-  },
   getWeather: {
     description: 'Get the current weather at a location',
     parameters: z.object({
@@ -49,4 +38,27 @@ export const httpTools: Record<HttpTools, CoreTool> = {
       return weatherData;
     },
   },
+};
+
+export const injectHttpTools = (options: { ip?: string }): Record<InjectableHttpTools, CoreTool> => {
+  const { ip } = options;
+
+  return {
+    getCurrentCoorByIP: {
+      description: 'Get the current location by IP',
+      parameters: z.object({}),
+      execute: async () => {
+        console.log(`[tool called]: getCurrentCoorByIP, ip: ${ip}`);
+        const response = await fetch(`https://ipapi.co/${ip}/json/`);
+        const locationData = await response.json();
+
+        return {
+          latitude: locationData.latitude,
+          longitude: locationData.longitude,
+          city: locationData.city,
+          ip: locationData.ip,
+        };
+      },
+    },
+  };
 };

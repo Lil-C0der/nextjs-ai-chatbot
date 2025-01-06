@@ -16,10 +16,11 @@ import {
 } from '@/lib/db/queries';
 import type { Suggestion } from '@/lib/db/schema';
 import { generateUUID, getMostRecentUserMessage, sanitizeResponseMessages } from '@/lib/utils';
-import { httpToolNames, httpTools } from '@/lib/ai/http-tools';
+import { httpToolNames, httpTools, injectableHttpToolNames, injectHttpTools } from '@/lib/ai/http-tools';
 import { generateTitleFromUserMessage } from '../../actions';
 import { realWorldToolNames, realWorldTools } from '@/lib/ai/real-world-tools';
 import { builtInToolNames, builtInTools } from '@/lib/ai/built-in-tools';
+import { registry } from '@/lib/ai/model-provider';
 
 export const maxDuration = 60;
 
@@ -29,14 +30,22 @@ type AllowedTools =
   | 'requestSuggestions'
   | keyof typeof httpTools
   | keyof typeof realWorldTools
-  | keyof typeof builtInTools;
+  | keyof typeof builtInTools
+  | keyof ReturnType<typeof injectHttpTools>;
 
 const blocksTools: AllowedTools[] = ['createDocument', 'updateDocument', 'requestSuggestions'];
 
-const allTools: AllowedTools[] = [...blocksTools, ...httpToolNames, ...realWorldToolNames, ...builtInToolNames];
+const allTools: AllowedTools[] = [
+  ...blocksTools,
+  ...httpToolNames,
+  ...injectableHttpToolNames,
+  ...realWorldToolNames,
+  ...builtInToolNames,
+];
 
 export async function POST(request: Request) {
   const { id, messages, modelId }: { id: string; messages: Array<Message>; modelId: string } = await request.json();
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0];
 
   const session = await auth();
 
@@ -74,6 +83,8 @@ export async function POST(request: Request) {
     messages: [{ ...userMessage, id: userMessageId, createdAt: new Date(), chatId: id }],
   });
 
+  const injectTools = injectHttpTools({ ip });
+
   return createDataStreamResponse({
     execute: (dataStream) => {
       dataStream.writeData({
@@ -89,6 +100,7 @@ export async function POST(request: Request) {
         experimental_activeTools: allTools,
         tools: {
           ...httpTools,
+          ...injectTools,
           ...realWorldTools,
           ...builtInTools,
           createDocument: {

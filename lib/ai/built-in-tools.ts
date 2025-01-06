@@ -1,5 +1,5 @@
-import { CoreTool } from 'ai';
-import { z } from 'zod';
+import { CoreTool, jsonSchema } from 'ai';
+// import { z } from 'zod';
 
 type BuiltInTools = 'getCurrentDate' | 'getCurrentTime';
 
@@ -8,14 +8,22 @@ export const builtInToolNames: BuiltInTools[] = ['getCurrentDate', 'getCurrentTi
 export const builtInTools: Record<BuiltInTools, CoreTool> = {
   getCurrentDate: {
     description: 'Get the current date',
-    parameters: z.optional(z.object({})),
+    parameters: jsonSchema({
+      type: 'object',
+      properties: {},
+      required: [],
+    }),
     execute: () => {
       return Promise.resolve(new Date().toLocaleDateString());
     },
   },
   getCurrentTime: {
     description: 'Get the current time',
-    parameters: z.optional(z.object({})),
+    parameters: jsonSchema({
+      type: 'object',
+      properties: {},
+      required: [],
+    }),
     execute: () => {
       return Promise.resolve(new Date().toLocaleTimeString());
     },
