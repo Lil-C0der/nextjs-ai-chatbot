@@ -47,6 +47,18 @@ export const models: Array<Model> = [
     description: 'Doubao pro 32k functioncall',
   },
   {
+    id: 'doubao-vision-pro-32k',
+    label: 'Doubao-vision-pro-32k',
+    apiIdentifier: `${PROVIDER_ID.ARK}:ep-20250107143035-9p8j2`,
+    description: 'Doubao vision pro 32k',
+  },
+  {
+    id: 'Doubao-vision-lite-32k',
+    label: 'Doubao-vision-lite-32k',
+    apiIdentifier: `${PROVIDER_ID.ARK}:ep-20250107194207-jvsf6`,
+    description: 'Doubao vision lite 32k',
+  },
+  {
     id: 'deepseek',
     label: 'Deepseek',
     apiIdentifier: `${PROVIDER_ID.DEEPSEEK}:deepseek-chat`,
