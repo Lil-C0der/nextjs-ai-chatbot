@@ -142,7 +142,15 @@ const PurePreviewMessage = ({
                         ) : toolName === 'requestSuggestions' ? (
                           <DocumentToolResult type="request-suggestions" result={result} isReadonly={isReadonly} />
                         ) : (
-                          <pre>{JSON.stringify(result, null, 2)}</pre>
+                          <pre
+                            style={{
+                              whiteSpace: 'pre-wrap',
+                              wordWrap: 'break-word',
+                              overflowWrap: 'break-word',
+                            }}
+                          >
+                            {JSON.stringify(result, null, 2)}
+                          </pre>
                         )}
                       </div>
                     );

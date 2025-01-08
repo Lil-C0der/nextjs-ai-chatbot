@@ -23,6 +23,8 @@ import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { SuggestedActions } from './suggested-actions';
+import * as Checkbox from '@radix-ui/react-checkbox';
+import { CheckIcon } from '@radix-ui/react-icons';
 import equal from 'fast-deep-equal';
 
 function PureMultimodalInput({
@@ -61,6 +63,8 @@ function PureMultimodalInput({
   className?: string;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isRetrieveKnowledge = useRef<boolean | null>(null);
+
   const { width } = useWindowSize();
 
   useEffect(() => {
@@ -107,6 +111,9 @@ function PureMultimodalInput({
 
     handleSubmit(undefined, {
       experimental_attachments: attachments,
+      body: {
+        isRetrieveKnowledge: isRetrieveKnowledge.current,
+      },
     });
 
     setAttachments([]);
@@ -170,7 +177,6 @@ function PureMultimodalInput({
       {messages.length === 0 && attachments.length === 0 && uploadQueue.length === 0 && (
         <SuggestedActions append={append} chatId={chatId} />
       )}
-
       <input
         type="file"
         className="fixed -top-4 -left-4 size-0.5 opacity-0 pointer-events-none"
@@ -179,6 +185,27 @@ function PureMultimodalInput({
         onChange={handleFileChange}
         tabIndex={-1}
       />
+
+      <div style={{ margin: '0 0 0 auto', display: 'flex', alignItems: 'center' }}>
+        <Checkbox.Root
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 4,
+          }}
+          id="isRetrieveKnowledge"
+          onCheckedChange={(e) => {
+            isRetrieveKnowledge.current = e;
+          }}
+        >
+          <Checkbox.Indicator>
+            <CheckIcon />
+          </Checkbox.Indicator>
+        </Checkbox.Root>
+        <label style={{ paddingLeft: 8 }} htmlFor="isRetrieveKnowledge">
+          是否召回知识
+        </label>
+      </div>
 
       {(attachments.length > 0 || uploadQueue.length > 0) && (
         <div className="flex flex-row gap-2 overflow-x-scroll items-end">
@@ -199,7 +226,6 @@ function PureMultimodalInput({
           ))}
         </div>
       )}
-
       <Textarea
         ref={textareaRef}
         placeholder="Send a message..."
@@ -223,11 +249,9 @@ function PureMultimodalInput({
           }
         }}
       />
-
       <div className="absolute bottom-0 p-2 w-fit flex flex-row justify-start">
         <AttachmentsButton fileInputRef={fileInputRef} isLoading={isLoading} />
       </div>
-
       <div className="absolute bottom-0 right-0 p-2 w-fit flex flex-row justify-end">
         {isLoading ? (
           <StopButton stop={stop} setMessages={setMessages} />

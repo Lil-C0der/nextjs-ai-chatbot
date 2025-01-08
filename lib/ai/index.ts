@@ -1,6 +1,6 @@
 import { experimental_wrapLanguageModel as wrapLanguageModel } from 'ai';
 import { customMiddleware } from './custom-middleware';
-import { registry } from './model-provider';
+import { PROVIDER_ID, registry } from './model-provider';
 
 export const customModel = (apiIdentifier: string) => {
   return wrapLanguageModel({
@@ -8,3 +8,5 @@ export const customModel = (apiIdentifier: string) => {
     middleware: customMiddleware,
   });
 };
+
+export const defaultEmbeddingModel = registry.textEmbeddingModel(`${PROVIDER_ID.ARK}:ep-20250109012013-rjzvh`);

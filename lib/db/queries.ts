@@ -1,7 +1,7 @@
 import 'server-only';
 
 import { genSaltSync, hashSync } from 'bcrypt-ts';
-import { and, asc, desc, eq, gt, gte } from 'drizzle-orm';
+import { and, asc, cosineDistance, desc, eq, gt, gte, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
@@ -15,8 +15,13 @@ import {
   type Message,
   message,
   vote,
+  insertResourceSchema,
+  NewResourceParams,
+  resources,
+  embeddings as embeddingsTable,
 } from './schema';
 import { BlockKind } from '@/components/block';
+import { generateEmbedding, generateEmbeddings } from '../ai/embedding';
 
 // Optionally, if not using email/pass login, you can
 // use the Drizzle adapter for Auth.js / NextAuth
@@ -47,15 +52,7 @@ export async function createUser(email: string, password: string) {
   }
 }
 
-export async function saveChat({
-  id,
-  userId,
-  title,
-}: {
-  id: string;
-  userId: string;
-  title: string;
-}) {
+export async function saveChat({ id, userId, title }: { id: string; userId: string; title: string }) {
   try {
     return await db.insert(chat).values({
       id,
@@ -83,11 +80,7 @@ export async function deleteChatById({ id }: { id: string }) {
 
 export async function getChatsByUserId({ id }: { id: string }) {
   try {
-    return await db
-      .select()
-      .from(chat)
-      .where(eq(chat.userId, id))
-      .orderBy(desc(chat.createdAt));
+    return await db.select().from(chat).where(eq(chat.userId, id)).orderBy(desc(chat.createdAt));
   } catch (error) {
     console.error('Failed to get chats by user from database');
     throw error;
@@ -115,11 +108,7 @@ export async function saveMessages({ messages }: { messages: Array<Message> }) {
 
 export async function getMessagesByChatId({ id }: { id: string }) {
   try {
-    return await db
-      .select()
-      .from(message)
-      .where(eq(message.chatId, id))
-      .orderBy(asc(message.createdAt));
+    return await db.select().from(message).where(eq(message.chatId, id)).orderBy(asc(message.createdAt));
   } catch (error) {
     console.error('Failed to get messages by chat id from database', error);
     throw error;
@@ -197,11 +186,7 @@ export async function saveDocument({
 
 export async function getDocumentsById({ id }: { id: string }) {
   try {
-    const documents = await db
-      .select()
-      .from(document)
-      .where(eq(document.id, id))
-      .orderBy(asc(document.createdAt));
+    const documents = await db.select().from(document).where(eq(document.id, id)).orderBy(asc(document.createdAt));
 
     return documents;
   } catch (error) {
@@ -225,39 +210,18 @@ export async function getDocumentById({ id }: { id: string }) {
   }
 }
 
-export async function deleteDocumentsByIdAfterTimestamp({
-  id,
-  timestamp,
-}: {
-  id: string;
-  timestamp: Date;
-}) {
+export async function deleteDocumentsByIdAfterTimestamp({ id, timestamp }: { id: string; timestamp: Date }) {
   try {
-    await db
-      .delete(suggestion)
-      .where(
-        and(
-          eq(suggestion.documentId, id),
-          gt(suggestion.documentCreatedAt, timestamp),
-        ),
-      );
+    await db.delete(suggestion).where(and(eq(suggestion.documentId, id), gt(suggestion.documentCreatedAt, timestamp)));
 
-    return await db
-      .delete(document)
-      .where(and(eq(document.id, id), gt(document.createdAt, timestamp)));
+    return await db.delete(document).where(and(eq(document.id, id), gt(document.createdAt, timestamp)));
   } catch (error) {
-    console.error(
-      'Failed to delete documents by id after timestamp from database',
-    );
+    console.error('Failed to delete documents by id after timestamp from database');
     throw error;
   }
 }
 
-export async function saveSuggestions({
-  suggestions,
-}: {
-  suggestions: Array<Suggestion>;
-}) {
+export async function saveSuggestions({ suggestions }: { suggestions: Array<Suggestion> }) {
   try {
     return await db.insert(suggestion).values(suggestions);
   } catch (error) {
@@ -266,20 +230,14 @@ export async function saveSuggestions({
   }
 }
 
-export async function getSuggestionsByDocumentId({
-  documentId,
-}: {
-  documentId: string;
-}) {
+export async function getSuggestionsByDocumentId({ documentId }: { documentId: string }) {
   try {
     return await db
       .select()
       .from(suggestion)
       .where(and(eq(suggestion.documentId, documentId)));
   } catch (error) {
-    console.error(
-      'Failed to get suggestions by document version from database',
-    );
+    console.error('Failed to get suggestions by document version from database');
     throw error;
   }
 }
@@ -293,23 +251,11 @@ export async function getMessageById({ id }: { id: string }) {
   }
 }
 
-export async function deleteMessagesByChatIdAfterTimestamp({
-  chatId,
-  timestamp,
-}: {
-  chatId: string;
-  timestamp: Date;
-}) {
+export async function deleteMessagesByChatIdAfterTimestamp({ chatId, timestamp }: { chatId: string; timestamp: Date }) {
   try {
-    return await db
-      .delete(message)
-      .where(
-        and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)),
-      );
+    return await db.delete(message).where(and(eq(message.chatId, chatId), gte(message.createdAt, timestamp)));
   } catch (error) {
-    console.error(
-      'Failed to delete messages by id after timestamp from database',
-    );
+    console.error('Failed to delete messages by id after timestamp from database');
     throw error;
   }
 }
@@ -328,3 +274,41 @@ export async function updateChatVisiblityById({
     throw error;
   }
 }
+
+export const createResource = async (input: NewResourceParams) => {
+  try {
+    const { content } = insertResourceSchema.parse(input);
+
+    const [resource] = await db.insert(resources).values({ content }).returning();
+
+    const embeddings = await generateEmbeddings(content);
+    await db.insert(embeddingsTable).values(
+      embeddings.map((embedding) => ({
+        resourceId: resource.id,
+        ...embedding,
+      }))
+    );
+    return {
+      success: true,
+      message: 'Resource successfully created and embedded.',
+    };
+  } catch (error) {
+    const errMsg = error instanceof Error && error.message.length > 0 ? error.message : 'Error, please try again.';
+    return {
+      success: false,
+      message: errMsg,
+    };
+  }
+};
+
+export const findRelevantContent = async (userQuery: string) => {
+  const userQueryEmbedded = await generateEmbedding(userQuery);
+  const similarity = sql<number>`1 - (${cosineDistance(embeddingsTable.embedding, userQueryEmbedded)})`;
+  const similarGuides = await db
+    .select({ name: embeddingsTable.content, similarity })
+    .from(embeddingsTable)
+    .where(gt(similarity, 0.3))
+    .orderBy((t) => desc(t.similarity))
+    .limit(4);
+  return similarGuides;
+};

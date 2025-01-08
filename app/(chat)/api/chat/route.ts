@@ -1,12 +1,22 @@
-import { type Message, convertToCoreMessages, createDataStreamResponse, streamObject, streamText } from 'ai';
+import {
+  type Message,
+  convertToCoreMessages,
+  createDataStreamResponse,
+  generateObject,
+  streamObject,
+  streamText,
+  tool,
+} from 'ai';
 import { z } from 'zod';
 
 import { auth } from '@/app/(auth)/auth';
 import { customModel } from '@/lib/ai';
 import { models } from '@/lib/ai/models';
-import { codePrompt, systemPrompt, updateDocumentPrompt } from '@/lib/ai/prompts';
+import { codePrompt, getSystemPrompt, updateDocumentPrompt } from '@/lib/ai/prompts';
 import {
+  createResource,
   deleteChatById,
+  findRelevantContent,
   getChatById,
   getDocumentById,
   saveChat,
@@ -44,7 +54,18 @@ const allTools: AllowedTools[] = [
 ];
 
 export async function POST(request: Request) {
-  const { id, messages, modelId }: { id: string; messages: Array<Message>; modelId: string } = await request.json();
+  const {
+    id,
+    messages,
+    modelId,
+    isRetrieveKnowledge = false,
+  }: {
+    id: string;
+    messages: Array<Message>;
+    modelId: string;
+    isRetrieveKnowledge: boolean;
+  } = await request.json();
+
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0];
 
   const session = await auth();
@@ -85,6 +106,58 @@ export async function POST(request: Request) {
 
   const injectTools = injectHttpTools({ ip });
 
+  const ragTools = isRetrieveKnowledge
+    ? {
+        addResource: tool({
+          description: `add a resource to your knowledge base.
+        If the user provides a random piece of knowledge unprompted, use this tool without asking for confirmation.`,
+          parameters: z.object({
+            content: z.string().describe('the content or resource to add to the knowledge base'),
+          }),
+          execute: async ({ content }) => {
+            const res = await createResource({ content });
+            return res.message;
+          },
+        }),
+        getInformation: tool({
+          description: `get information from your knowledge base to answer questions.`,
+          parameters: z.object({
+            question: z.string().describe('the users question'),
+            similarQuestions: z.array(z.string()).describe('keywords to search'),
+          }),
+          execute: async ({ similarQuestions }) => {
+            const results = await Promise.all(
+              similarQuestions.map(async (question) => await findRelevantContent(question))
+            );
+            // Flatten the array of arrays and remove duplicates based on 'name'
+            const uniqueResults = Array.from(new Map(results.flat().map((item) => [item?.name, item])).values());
+            return uniqueResults;
+          },
+        }),
+        understandQuery: tool({
+          description: `understand the users query. use this tool on every prompt.`,
+          parameters: z.object({
+            query: z.string().describe('the users query'),
+            toolsToCallInOrder: z
+              .array(z.string())
+              .describe('these are the tools you need to call in the order necessary to respond to the users query'),
+          }),
+          execute: async ({ query }) => {
+            const { object } = await generateObject({
+              model: customModel(model.apiIdentifier),
+              system: 'You are a query understanding assistant. Analyze the user query and generate similar questions.',
+              schema: z.object({
+                questions: z.array(z.string()).max(3).describe("similar questions to the user's query. be concise."),
+              }),
+              prompt: `Analyze this query: "${query}". Provide the following:
+                  3 similar questions that could help answer the user's query`,
+            });
+            return object.questions;
+          },
+        }),
+      }
+    : {};
+
   return createDataStreamResponse({
     execute: (dataStream) => {
       dataStream.writeData({
@@ -94,10 +167,16 @@ export async function POST(request: Request) {
 
       const result = streamText({
         model: customModel(model.apiIdentifier),
-        system: systemPrompt,
+        system: getSystemPrompt(isRetrieveKnowledge),
         messages: coreMessages,
         maxSteps: 5,
-        experimental_activeTools: allTools,
+        experimental_activeTools: [
+          ...allTools,
+
+          // for rag
+          ...Object.keys(ragTools),
+        ],
+        // @ts-expect-error
         tools: {
           ...httpTools,
           ...injectTools,
@@ -375,6 +454,9 @@ export async function POST(request: Request) {
               };
             },
           },
+
+          // for rag
+          ...ragTools,
         },
         onFinish: async ({ response }) => {
           if (session.user?.id) {

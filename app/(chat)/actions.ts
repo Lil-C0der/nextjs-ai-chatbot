@@ -7,6 +7,7 @@ import { cookies } from 'next/headers';
 import { deleteMessagesByChatIdAfterTimestamp, getMessageById, updateChatVisiblityById } from '@/lib/db/queries';
 import { VisibilityType } from '@/components/visibility-selector';
 import { registry } from '@/lib/ai/model-provider';
+import { insertResourceSchema, NewResourceParams } from '@/lib/db/schema';
 
 export async function saveModelId(model: string) {
   const cookieStore = await cookies();
