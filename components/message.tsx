@@ -38,7 +38,6 @@ const PurePreviewMessage = ({
   isReadonly: boolean;
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
-  console.log('message update', message);
 
   return (
     <AnimatePresence>

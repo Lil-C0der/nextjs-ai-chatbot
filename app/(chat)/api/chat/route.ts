@@ -172,7 +172,6 @@ export async function POST(request: Request) {
         maxSteps: 5,
         experimental_activeTools: [
           ...allTools,
-
           // for rag
           ...Object.keys(ragTools),
         ],
