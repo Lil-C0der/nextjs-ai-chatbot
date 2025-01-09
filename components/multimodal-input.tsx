@@ -195,6 +195,10 @@ function PureMultimodalInput({
           }}
           id="isRetrieveKnowledge"
           onCheckedChange={(e) => {
+            if (typeof e !== 'boolean') {
+              return;
+            }
+
             isRetrieveKnowledge.current = e;
           }}
         >
