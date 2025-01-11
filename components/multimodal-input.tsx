@@ -18,7 +18,7 @@ import { useLocalStorage, useWindowSize } from 'usehooks-ts';
 
 import { sanitizeUIMessages } from '@/lib/utils';
 
-import { ArrowUpIcon, PaperclipIcon, StopIcon } from './icons';
+import { ArrowUpIcon, PaperclipIcon, RefreshIcon, StopIcon } from './icons';
 import { PreviewAttachment } from './preview-attachment';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
@@ -26,6 +26,7 @@ import { SuggestedActions } from './suggested-actions';
 import * as Checkbox from '@radix-ui/react-checkbox';
 import { CheckIcon } from '@radix-ui/react-icons';
 import equal from 'fast-deep-equal';
+import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 
 function PureMultimodalInput({
   chatId,
@@ -186,29 +187,44 @@ function PureMultimodalInput({
         tabIndex={-1}
       />
 
-      <div style={{ margin: '0 0 0 auto', display: 'flex', alignItems: 'center' }}>
-        <Checkbox.Root
-          style={{
-            width: 24,
-            height: 24,
-            borderRadius: 4,
-          }}
-          id="isRetrieveKnowledge"
-          onCheckedChange={(e) => {
-            if (typeof e !== 'boolean') {
-              return;
-            }
+      <div className="flex items-center w-full">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              type="button"
+              className="p-2 h-fit"
+              onClick={() => {
+                setMessages([]);
+              }}
+            >
+              <RefreshIcon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent align="end">Empty this session</TooltipContent>
+        </Tooltip>
 
-            isRetrieveKnowledge.current = e;
-          }}
-        >
-          <Checkbox.Indicator>
-            <CheckIcon />
-          </Checkbox.Indicator>
-        </Checkbox.Root>
-        <label style={{ paddingLeft: 8 }} htmlFor="isRetrieveKnowledge">
-          是否召回知识
-        </label>
+        <div className="flex items-center ml-auto mr-0">
+          <Checkbox.Root
+            className="flex size-[25px] appearance-none items-center justify-center rounded bg-white shadow-[0_2px_10px] shadow-blackA4 outline-none hover:bg-violet3 focus:shadow-[0_0_0_2px_black]bg-primary text-primary-foreground"
+            id="isRetrieveKnowledge"
+            onCheckedChange={(e) => {
+              if (typeof e !== 'boolean') {
+                return;
+              }
+
+              isRetrieveKnowledge.current = e;
+            }}
+          >
+            <Checkbox.Indicator>
+              <CheckIcon />
+            </Checkbox.Indicator>
+          </Checkbox.Root>
+
+          <label className="pl-[15px] text-[15px] leading-none text-white" htmlFor="isRetrieveKnowledge">
+            是否召回知识
+          </label>
+        </div>
       </div>
 
       {(attachments.length > 0 || uploadQueue.length > 0) && (

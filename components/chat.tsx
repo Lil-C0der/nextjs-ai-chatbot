@@ -30,17 +30,7 @@ export function Chat({
 }) {
   const { mutate } = useSWRConfig();
 
-  const {
-    messages,
-    setMessages,
-    handleSubmit,
-    input,
-    setInput,
-    append,
-    isLoading,
-    stop,
-    reload,
-  } = useChat({
+  const { messages, setMessages, handleSubmit, input, setInput, append, isLoading, stop, reload } = useChat({
     id,
     body: { id, modelId: selectedModelId },
     initialMessages,
@@ -50,10 +40,7 @@ export function Chat({
     },
   });
 
-  const { data: votes } = useSWR<Array<Vote>>(
-    `/api/vote?chatId=${id}`,
-    fetcher,
-  );
+  const { data: votes } = useSWR<Array<Vote>>(`/api/vote?chatId=${id}`, fetcher);
 
   const [attachments, setAttachments] = useState<Array<Attachment>>([]);
   const isBlockVisible = useBlockSelector((state) => state.isVisible);

@@ -1,5 +1,4 @@
 import { createOpenAI } from '@ai-sdk/openai';
-import { experimental_customProvider as customProvider } from 'ai';
 import { experimental_createProviderRegistry as createProviderRegistry } from 'ai';
 
 export const PROVIDER_ID = {
